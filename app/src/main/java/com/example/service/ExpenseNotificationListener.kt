@@ -56,66 +56,133 @@ class ExpenseNotificationListener : NotificationListenerService() {
 
         try {
             val packageName = sbn.packageName ?: ""
+            
+            // Step A: Extract full text with deliberate spaces to prevent boundary collisions
             val extras = sbn.notification?.extras ?: return
-
-            val title = extras.getString(android.app.Notification.EXTRA_TITLE) ?: extras.getCharSequence("android.title")?.toString() ?: ""
+            val title = extras.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString() ?: ""
             val text = extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() ?: ""
             val bigText = extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
             val subText = extras.getCharSequence(android.app.Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
 
-            val messageContent = listOf(text, bigText, subText).filter { it.isNotBlank() }.joinToString(" ")
-            val fullContent = "$title $text $bigText $subText".replace("\\s+".toRegex(), " ").trim().lowercase()
-            val fullText = fullContent
+            val fullText = "$title$text $bigText$subText".replace("\n", " ").replace("\\s+".toRegex(), " ").trim()
+            val lower = fullText.lowercase()
 
-            val isChatApp = packageName.contains("whatsapp", ignoreCase = true)
-            if (isChatApp) {
-                val hasPaymentMarker = Regex("""(?i)\b(paid|sent|received|₹|rs\.?|inr)\b""").containsMatchIn(fullText)
-                if (!hasPaymentMarker) return
-            }
+            var finalType: String? = null
+            var finalAmount: Double? = null
+            var finalMerchant: String = "UPI Payment"
 
-            val isUpiApp = TARGET_PACKAGES.contains(packageName) &&
-                    !packageName.contains("messaging", true) &&
-                    !packageName.contains("mms", true) &&
-                    !packageName.contains("message", true)
+            // STEP 1: STRICT DEBIT EVALUATION (HIGHEST PRIORITY - TERMINATING CHECK)
+            val isDebitAlert = lower.contains("debited") ||
+                               lower.contains("paid to") ||
+                               lower.contains("sent to") ||
+                               lower.contains("spent") ||
+                               lower.contains("deducted") ||
+                               lower.contains("payment to") ||
+                               (lower.contains("paid") && !lower.contains("paid you"))
 
-            val containsBankKeywords = BANK_KEYWORDS.any { fullText.contains(it) }
+            if (isDebitAlert) {
+                finalType = "DEBIT"
 
-            if (isUpiApp || containsBankKeywords) {
-                Log.d(TAG, "Notification matched from $packageName: Title='$title', Content='$messageContent'")
-                val transaction = NotificationParser.parse(packageName, title, messageContent)
-                if (transaction != null) {
-                    Log.d(TAG, "Parsed Transaction: Amount=${transaction.amount}, Merchant=${transaction.merchantName}, Category=${transaction.category}, Type=${transaction.type}")
-                    scope.launch {
-                        val db = AppDatabase.getInstance(applicationContext)
-                        val dao = db.transactionDao()
-                        val windowStartTime = System.currentTimeMillis() - (15 * 60 * 1000L)
-                        val existingMatch = dao.findDuplicateCandidate(transaction.type, transaction.amount, windowStartTime)
+                // 1A. Extract Amount (handles Rs., INR, ₹, with optional decimals)
+                val amountRegex = """(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)""".toRegex(RegexOption.IGNORE_CASE)
+                amountRegex.find(fullText)?.let {
+                    finalAmount = it.groupValues[1].replace(",", "").toDoubleOrNull()
+                }
 
-                        if (existingMatch != null) {
-                            val isIncomingRicher = (transaction.merchantName != "Merchant Payment" && transaction.merchantName != "Received Payment") &&
-                                    (existingMatch.merchantName == "Merchant Payment" || existingMatch.merchantName == "Received Payment")
-                            if (isIncomingRicher) {
-                                val updated = existingMatch.copy(
-                                    merchantName = transaction.merchantName,
-                                    category = transaction.category,
-                                    rawMessage = "${existingMatch.rawMessage} | ${transaction.rawMessage}"
-                                )
-                                dao.insert(updated)
-                                Log.d(TAG, "Updated existing transaction with richer metadata (Scenario B): ID=${updated.id}")
-                            } else {
-                                val updated = existingMatch.copy(
-                                    rawMessage = "${existingMatch.rawMessage} | ${transaction.rawMessage}"
-                                )
-                                dao.insert(updated)
-                                Log.d(TAG, "Duplicate transaction detected (Scenario A) within 15 mins (Amount: ${transaction.amount}). Dropped duplicate and enriched rawMessage.")
-                            }
-                        } else {
-                            dao.insert(transaction)
-                            Log.d(TAG, "Successfully inserted new transaction into Room Database")
+                // 1B. Extract Real Counterparty (skip Bank SMS headers like JM-BOIIND-S)
+                val recipientRegex = """(?:credited\s+to|paid\s+to|sent\s+to|to\s+vpa|to)\s+([A-Za-z0-9\s._'-]+?)(?:\s+via|\s+on|\s+ref|\s+upi|\.|\,|$)""".toRegex(RegexOption.IGNORE_CASE)
+                recipientRegex.find(fullText)?.let {
+                    val extracted = it.groupValues[1].trim()
+                    if (extracted.length in 2..35 && !extracted.contains("account", ignoreCase = true) && !extracted.contains("a/c", ignoreCase = true)) {
+                        finalMerchant = extracted
+                    }
+                }
+                
+                // If merchant wasn't found in text and title isn't a bank code, use title
+                if (finalMerchant == "UPI Payment" && title.isNotBlank() && !title.matches("""^[A-Z]{2}-[A-Z0-9]+.*""".toRegex())) {
+                    finalMerchant = title.trim()
+                }
+            } 
+            // STEP 2: CREDIT EVALUATION (STRICTLY MUTUALLY EXCLUSIVE - ONLY RUNS IF NOT DEBIT)
+            else {
+                val isCreditAlert = lower.contains("credited to your") ||
+                                    lower.contains("credited to a/c") ||
+                                    lower.contains("credited to acct") ||
+                                    lower.contains("deposited in") ||
+                                    lower.contains("paid you") ||
+                                    lower.contains("received ₹") ||
+                                    lower.contains("received rs") ||
+                                    (lower.contains("received") && lower.contains("from"))
+
+                if (isCreditAlert) {
+                    finalType = "CREDIT"
+
+                    // 2A. Extract Credit Amount
+                    val amountRegex = """(?:rs\.?|inr|₹)\s*([0-9,]+(?:\.[0-9]{1,2})?)""".toRegex(RegexOption.IGNORE_CASE)
+                    amountRegex.find(fullText)?.let {
+                        finalAmount = it.groupValues[1].replace(",", "").toDoubleOrNull()
+                    }
+
+                    // 2B. Extract Sender Name
+                    val senderRegex = """(?:from|paid\s+you)\s+([A-Za-z0-9\s._'-]+?)(?:\s+via|\s+on|\s+ref|\.|\,|$)""".toRegex(RegexOption.IGNORE_CASE)
+                    senderRegex.find(fullText)?.let {
+                        val extracted = it.groupValues[1].trim()
+                        if (extracted.length in 2..35) {
+                            finalMerchant = extracted
                         }
+                    }
+                    
+                    if (finalMerchant == "UPI Payment" && title.isNotBlank()) {
+                        finalMerchant = title.replace("Tap to view", "").trim()
                     }
                 }
             }
+
+            val transaction = if (finalType != null && finalAmount != null) {
+                com.example.data.Transaction(
+                    amount = finalAmount!!,
+                    type = finalType!!,
+                    merchantName = finalMerchant,
+                    category = "Others",
+                    timestamp = System.currentTimeMillis(),
+                    rawMessage = fullText
+                )
+            } else null
+            
+            if (transaction != null) {
+                Log.d(TAG, "Parsed Transaction: Amount=${transaction.amount}, Merchant=${transaction.merchantName}, Category=${transaction.category}, Type=${transaction.type}")
+                scope.launch {
+                    val db = AppDatabase.getInstance(applicationContext)
+                    val dao = db.transactionDao()
+                    val windowStartTime = System.currentTimeMillis() - (15 * 60 * 1000L)
+                    val existingMatch = dao.findDuplicateCandidate(transaction.type, transaction.amount, windowStartTime)
+
+                    if (existingMatch != null) {
+                        val isIncomingRicher = (transaction.merchantName != "Merchant Payment" && transaction.merchantName != "Received Payment") &&
+                                (existingMatch.merchantName == "Merchant Payment" || existingMatch.merchantName == "Received Payment")
+                        if (isIncomingRicher) {
+                            val updated = existingMatch.copy(
+                                merchantName = transaction.merchantName,
+                                category = transaction.category,
+                                rawMessage = "${existingMatch.rawMessage} | ${transaction.rawMessage}"
+                            )
+                            dao.insert(updated)
+                            Log.d(TAG, "Updated existing transaction with richer metadata (Scenario B): ID=${updated.id}")
+                        } else {
+                            val updated = existingMatch.copy(
+                                rawMessage = "${existingMatch.rawMessage} | ${transaction.rawMessage}"
+                            )
+                            dao.insert(updated)
+                            Log.d(TAG, "Duplicate transaction detected (Scenario A) within 15 mins (Amount: ${transaction.amount}). Dropped duplicate and enriched rawMessage.")
+                        }
+                    } else {
+                        dao.insert(transaction)
+                        Log.d(TAG, "Successfully inserted new transaction into Room Database")
+                    }
+                }
+            }
+            // End of replaced logic
+
         } catch (e: Exception) {
             Log.e(TAG, "Error handling notification", e)
         }
