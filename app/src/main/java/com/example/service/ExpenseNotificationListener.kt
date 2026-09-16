@@ -68,12 +68,12 @@ class ExpenseNotificationListener : NotificationListenerService() {
                     scope.launch {
                         val db = AppDatabase.getInstance(applicationContext)
                         val dao = db.transactionDao()
-                        val sinceTime = System.currentTimeMillis() - 90000L
-                        val recentTransactions = dao.getRecentTransactions(sinceTime)
+                        val windowStartTime = System.currentTimeMillis() - (15 * 60 * 1000L)
+                        val existingMatch = dao.findDuplicateCandidate(transaction.type, transaction.amount, windowStartTime)
 
-                        val existingMatch = recentTransactions.find { kotlin.math.abs(it.amount - transaction.amount) < 0.01 }
                         if (existingMatch != null) {
-                            val isIncomingRicher = transaction.merchantName != "Merchant Payment" && existingMatch.merchantName == "Merchant Payment"
+                            val isIncomingRicher = (transaction.merchantName != "Merchant Payment" && transaction.merchantName != "Received Payment") &&
+                                    (existingMatch.merchantName == "Merchant Payment" || existingMatch.merchantName == "Received Payment")
                             if (isIncomingRicher) {
                                 val updated = existingMatch.copy(
                                     merchantName = transaction.merchantName,
@@ -81,9 +81,13 @@ class ExpenseNotificationListener : NotificationListenerService() {
                                     rawMessage = "${existingMatch.rawMessage} | ${transaction.rawMessage}"
                                 )
                                 dao.insert(updated)
-                                Log.d(TAG, "Updated existing transaction with richer metadata: ID=${updated.id}")
+                                Log.d(TAG, "Updated existing transaction with richer metadata (Scenario B): ID=${updated.id}")
                             } else {
-                                Log.d(TAG, "Duplicate transaction detected (Amount: ${transaction.amount}), skipping insertion.")
+                                val updated = existingMatch.copy(
+                                    rawMessage = "${existingMatch.rawMessage} | ${transaction.rawMessage}"
+                                )
+                                dao.insert(updated)
+                                Log.d(TAG, "Duplicate transaction detected (Scenario A) within 15 mins (Amount: ${transaction.amount}). Dropped duplicate and enriched rawMessage.")
                             }
                         } else {
                             dao.insert(transaction)

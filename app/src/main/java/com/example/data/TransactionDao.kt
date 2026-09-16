@@ -34,6 +34,19 @@ interface TransactionDao {
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM transactions WHERE type = 'DEBIT' AND timestamp >= :startOfDayTimestamp")
     fun getTodayDebitSpend(startOfDayTimestamp: Long): Flow<Double>
 
+    @Query("""
+        SELECT * FROM transactions 
+        WHERE type = :type 
+          AND ABS(amount - :amount) < 0.01 
+          AND timestamp >= :windowStartTime 
+        LIMIT 1
+    """)
+    suspend fun findDuplicateCandidate(
+        type: String, 
+        amount: Double, 
+        windowStartTime: Long
+    ): Transaction?
+
     @Query("SELECT * FROM transactions WHERE timestamp >= :sinceTime ORDER BY timestamp DESC")
     suspend fun getRecentTransactions(sinceTime: Long): List<Transaction>
 
