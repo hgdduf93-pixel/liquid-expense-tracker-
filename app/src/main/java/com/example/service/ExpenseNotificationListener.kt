@@ -24,7 +24,16 @@ class ExpenseNotificationListener : NotificationListenerService() {
             "net.one97.paytm",
             "com.google.android.apps.nbu.paisa.user",
             "in.org.npci.upiapp",
-            "com.amazon.mShop.android.shopping",
+            "in.amazon.mShop.android.shopping",
+            "com.dreamplug.androidapp",
+            "com.naviapp",
+            "tech.super",
+            "money.jupiter",
+            "co.fi.money",
+            "com.mobikwik_new",
+            "com.freecharge.android",
+            "indwin.c3.shareKaro",
+            "com.whatsapp",
             // SMS Apps
             "com.google.android.apps.messaging",
             "com.samsung.android.messaging",
@@ -52,6 +61,12 @@ class ExpenseNotificationListener : NotificationListenerService() {
             val messageContent = if (bigText.isNotBlank()) bigText else text
 
             val fullText = "$title $messageContent".lowercase()
+
+            val isChatApp = packageName.contains("whatsapp", ignoreCase = true)
+            if (isChatApp) {
+                val hasPaymentMarker = Regex("""(?i)\b(paid|sent|received|₹|rs\.?|inr)\b""").containsMatchIn(fullText)
+                if (!hasPaymentMarker) return
+            }
 
             val isTargetPackage = packageName in TARGET_PACKAGES ||
                     packageName.contains("sms", ignoreCase = true) ||

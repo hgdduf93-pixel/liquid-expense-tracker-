@@ -19,14 +19,26 @@ object NotificationParser {
     private val balanceInquiryKeywords = listOf("available balance", "avl bal", "inquiry")
     private val debitCreditMarkers = listOf("debited", "credited", "spent", "paid", "sent", "received")
 
-    private val creditRegexes = listOf(
-        Regex("""(?i)(?:paid\s+you|paid\s+to\s+you|received\s+from|credited\s+to|added\s+to|deposited|refund\s+of)\s*(?:rs\.?|inr|₹)?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)"""),
-        Regex("""(?i)(?:rs\.?|inr|₹)\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)\s*(?:received|credited)""")
+    private data class ParseRule(val regex: Regex, val isCredit: Boolean, val amountGroup: Int, val merchantGroup: Int)
+
+    private val creditRules = listOf(
+        ParseRule(Regex("""(?i)received\s+(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+from\s+([A-Za-z0-9\s._'-]+)"""), true, 1, 2),
+        ParseRule(Regex("""(?i)payment\s+of\s+(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+received\s+from\s+([A-Za-z0-9\s._'-]+)"""), true, 1, 2),
+        ParseRule(Regex("""(?i)(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+received\s+from\s+([A-Za-z0-9\s._'-]+)"""), true, 1, 2),
+        ParseRule(Regex("""(?i)you\s+have\s+received\s+(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+from\s+([A-Za-z0-9\s._'-]+)"""), true, 1, 2),
+        ParseRule(Regex("""(?i)^([A-Za-z0-9\s._'-]+?)\s+paid\s+you\s+(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)"""), true, 2, 1),
+        ParseRule(Regex("""(?i)(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+credited\s+to\s+your\s+(?:account|wallet|vpa)"""), true, 1, -1),
+        ParseRule(Regex("""(?i)money\s+transferred\s+to\s+your\s+account[\s\S]*?(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)"""), true, 1, -1),
+        ParseRule(Regex("""(?i)(?:paid\s+you|paid\s+to\s+you|received\s+from|credited\s+to|added\s+to|deposited|refund\s+of)\s*(?:rs\.?|inr|₹)?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)"""), true, 1, -1)
     )
 
-    private val debitRegexes = listOf(
-        Regex("""(?i)(?:paid\s+to|sent\s+to|debited\s+from|transferred\s+to|spent\s+on|spent\s+at)\s*(?:rs\.?|inr|₹)?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)"""),
-        Regex("""(?i)(?:rs\.?|inr|₹)\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)\s*(?:debited|spent)""")
+    private val debitRules = listOf(
+        ParseRule(Regex("""(?i)paid\s+(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+to\s+([A-Za-z0-9\s._'-]+)"""), false, 1, 2),
+        ParseRule(Regex("""(?i)payment\s+of\s+(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+to\s+([A-Za-z0-9\s._'-]+)\s+successful"""), false, 1, 2),
+        ParseRule(Regex("""(?i)(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+paid\s+to\s+([A-Za-z0-9\s._'-]+)"""), false, 1, 2),
+        ParseRule(Regex("""(?i)sent\s+(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+to\s+([A-Za-z0-9\s._'-]+)"""), false, 1, 2),
+        ParseRule(Regex("""(?i)transfer\s+of\s+(?:₹|rs\.?|inr)\s*([0-9,]+(?:\.[0-9]{1,2})?)\s+to\s+([A-Za-z0-9\s._'-]+)\s+successful"""), false, 1, 2),
+        ParseRule(Regex("""(?i)(?:paid\s+to|sent\s+to|debited\s+from|transferred\s+to|spent\s+on|spent\s+at)\s*(?:rs\.?|inr|₹)?\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)"""), false, 1, -1)
     )
 
     private val amountRegex = Regex(
@@ -83,35 +95,36 @@ object NotificationParser {
         var type = "DEBIT"
         var rawMerchant = ""
 
-        // Step A — Check for CREDIT first
-        for (regex in creditRegexes) {
-            val match = regex.find(rawCombined)
+        // Step A — Check credit rules
+        for (rule in creditRules) {
+            val match = rule.regex.find(rawCombined)
             if (match != null) {
-                val amountStr = match.groups[1]?.value?.replace(",", "")?.trim()
+                val amountStr = match.groups[rule.amountGroup]?.value?.replace(",", "")?.trim()
                 val parsedAmt = amountStr?.toDoubleOrNull()
                 if (parsedAmt != null && parsedAmt > 0.0) {
                     amount = parsedAmt
                     type = "CREDIT"
+                    if (rule.merchantGroup != -1) {
+                        rawMerchant = match.groups[rule.merchantGroup]?.value?.trim() ?: ""
+                    }
                     break
                 }
             }
         }
 
-        if (type == "CREDIT") {
-            val senderMatch = senderRegex.find(rawCombined)
-            rawMerchant = senderMatch?.groups?.get(1)?.value?.trim() ?: ""
-        }
-
-        // Step B — Check for DEBIT only if not Credit
+        // Step B — Check debit rules if amount is null
         if (amount == null) {
-            for (regex in debitRegexes) {
-                val match = regex.find(rawCombined)
+            for (rule in debitRules) {
+                val match = rule.regex.find(rawCombined)
                 if (match != null) {
-                    val amountStr = match.groups[1]?.value?.replace(",", "")?.trim()
+                    val amountStr = match.groups[rule.amountGroup]?.value?.replace(",", "")?.trim()
                     val parsedAmt = amountStr?.toDoubleOrNull()
                     if (parsedAmt != null && parsedAmt > 0.0) {
                         amount = parsedAmt
                         type = "DEBIT"
+                        if (rule.merchantGroup != -1) {
+                            rawMerchant = match.groups[rule.merchantGroup]?.value?.trim() ?: ""
+                        }
                         break
                     }
                 }
@@ -130,9 +143,14 @@ object NotificationParser {
 
         if (amount <= 0.0) return null
 
-        if (type == "DEBIT") {
-            val merchantMatch = merchantRegex.find(rawCombined)
-            rawMerchant = merchantMatch?.groups?.get(1)?.value?.trim() ?: ""
+        if (rawMerchant.isEmpty()) {
+            if (type == "CREDIT") {
+                val senderMatch = senderRegex.find(rawCombined)
+                rawMerchant = senderMatch?.groups?.get(1)?.value?.trim() ?: ""
+            } else {
+                val merchantMatch = merchantRegex.find(rawCombined)
+                rawMerchant = merchantMatch?.groups?.get(1)?.value?.trim() ?: ""
+            }
         }
 
         val wordsToClean = listOf("your", "account", "a/c", "vpa", "bank", "the", "ref", "upi", "is", "has", "been")
@@ -140,11 +158,20 @@ object NotificationParser {
             rawMerchant = ""
         }
 
+        val appNameLabel = when {
+            packageName.contains("phonepe", true) -> "PhonePe Transfer"
+            packageName.contains("paytm", true) -> "Paytm Transfer"
+            packageName.contains("google", true) -> "GPay Transfer"
+            packageName.contains("amazon", true) -> "Amazon Pay Transfer"
+            packageName.contains("cred", true) -> "CRED Payment"
+            packageName.contains("bhim", true) -> "BHIM UPI Transfer"
+            else -> if (type == "CREDIT") "Received Payment" else "Merchant Payment"
+        }
+
         val merchantName = when {
             rawMerchant.isNotEmpty() -> cleanMerchantName(rawMerchant)
             title.isNotEmpty() && !title.contains("message", ignoreCase = true) && !title.contains("notification", ignoreCase = true) -> cleanMerchantName(title)
-            type == "CREDIT" -> "Received Payment"
-            else -> "Merchant Payment"
+            else -> appNameLabel
         }
 
         val category = autoCategorize(merchantName, rawCombined)
