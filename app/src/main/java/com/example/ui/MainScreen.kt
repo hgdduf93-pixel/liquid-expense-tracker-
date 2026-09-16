@@ -44,7 +44,7 @@ fun MainScreen() {
         Box(modifier = Modifier.size(300.dp).offset(x = 100.dp, y = (-50).dp).scale(scale).background(Color(0xFF8A2BE2).copy(alpha = 0.45f), CircleShape).blur(120.dp))
         Box(modifier = Modifier.size(300.dp).offset(x = (-100).dp, y = 300.dp).scale(scale).background(Color(0xFF00E5FF).copy(alpha = 0.45f), CircleShape).blur(120.dp))
 
-        Column(modifier = Modifier.fillMaxSize().padding(top = 50.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(top = 52.dp)) {
             Box(modifier = Modifier.weight(1f)) {
                 AnimatedContent(
                     targetState = activeTab,
