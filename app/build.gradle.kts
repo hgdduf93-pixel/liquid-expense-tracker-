@@ -9,25 +9,24 @@ plugins {
 
 android {
   namespace = "com.example"
-  compileSdk = 35
+  compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
     applicationId = "com.aistudio.mudrix.gsd"
     minSdk = 26
-    targetSdk = 35
-    versionCode = 1
-    versionName = "1.0"
+    targetSdk = 36
+    versionCode = 2
+    versionName = "1.0.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      storeFile = file("${rootProject.projectDir}/app/keystore/mudrix_fixed.jks")
+      storePassword = "mudrixpassword"
+      keyAlias = "mudrix"
+      keyPassword = "mudrixpassword"
     }
   }
 
@@ -38,7 +37,9 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
-    debug { }
+    debug {
+      signingConfig = signingConfigs.getByName("release")
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
