@@ -62,7 +62,7 @@ class ExpenseNotificationListener : NotificationListenerService() {
 
             if (isTargetPackage || containsBankKeywords) {
                 Log.d(TAG, "Notification matched from $packageName: Title='$title', Text='$messageContent'")
-                val transaction = NotificationParser.parse(title, messageContent)
+                val transaction = NotificationParser.parse(packageName, title, messageContent)
                 if (transaction != null) {
                     Log.d(TAG, "Parsed Transaction: Amount=${transaction.amount}, Merchant=${transaction.merchantName}, Category=${transaction.category}, Type=${transaction.type}")
                     scope.launch {
@@ -94,6 +94,13 @@ class ExpenseNotificationListener : NotificationListenerService() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error handling notification", e)
+        }
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            requestRebind(android.content.ComponentName(this, ExpenseNotificationListener::class.java))
         }
     }
 

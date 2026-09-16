@@ -6,6 +6,8 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -104,7 +106,35 @@ fun GlassmorphicDashboardScreen(
 }
 
 @Composable
-fun TransactionHistoryPopup(transactions: List<Transaction>, onClose: () -> Unit) {
+fun TransactionHistoryPopup(transactions: List<Transaction>, viewModel: ExpenseViewModel = viewModel(), onClose: () -> Unit) {
+    var txToDelete by remember { mutableStateOf<Transaction?>(null) }
+
+    if (txToDelete != null) {
+        val tx = txToDelete!!
+        AlertDialog(
+            onDismissRequest = { txToDelete = null },
+            title = { Text("Delete Transaction", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete this transaction? Spent totals will be instantly recalculated.", color = Color(0xFFA1A1AA)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteTransaction(tx.id)
+                        txToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { txToDelete = null }) {
+                    Text("Cancel", color = Color(0xFFA1A1AA))
+                }
+            },
+            containerColor = Color(0xFF14151C)
+        )
+    }
+
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(modifier = Modifier.fillMaxSize().background(Color(0xFF070913).copy(alpha = 0.9f)).padding(16.dp)) {
             Column {
@@ -134,10 +164,27 @@ fun TransactionHistoryPopup(transactions: List<Transaction>, onClose: () -> Unit
                                     translationY = (1f - animProgress.value) * slideDistance
                                 }
                         ) {
-                            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            GlassCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .pointerInput(Unit) {
+                                        detectTapGestures(
+                                            onLongPress = { txToDelete = tx }
+                                        )
+                                    }
+                            ) {
                                 Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(tx.merchantName, color = Color.White)
-                                    Text("₹${tx.amount}", color = if (tx.type == "DEBIT") Color.Red else Color.Green, fontWeight = FontWeight.Bold)
+                                    Column {
+                                        Text(tx.merchantName, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text("${tx.category} • Long press to delete", color = Color(0xFFA1A1AA), fontSize = 11.sp)
+                                    }
+                                    val isDebit = tx.type == "DEBIT"
+                                    Text(
+                                        text = "${if (isDebit) "- " else "+ "}₹${tx.amount}",
+                                        color = if (isDebit) Color.White else Color(0xFF34D399),
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }

@@ -7,6 +7,8 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -413,8 +415,34 @@ fun TransactionsTab(viewModel: ExpenseViewModel = viewModel()) {
 }
 
 @Composable
-fun AnimatedTransactionItem(transaction: Transaction, index: Int) {
+fun AnimatedTransactionItem(transaction: Transaction, index: Int, viewModel: ExpenseViewModel = viewModel()) {
     var isVisible by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Transaction", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to delete this transaction? Spent totals will be instantly recalculated.", color = Color(0xFFA1A1AA)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteTransaction(transaction.id)
+                        showDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel", color = Color(0xFFA1A1AA))
+                }
+            },
+            containerColor = Color(0xFF14151C)
+        )
+    }
 
     LaunchedEffect(Unit) {
         isVisible = true
@@ -438,7 +466,13 @@ fun AnimatedTransactionItem(transaction: Transaction, index: Int) {
         )
     ) {
         GlassCard(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onLongPress = { showDeleteDialog = true }
+                    )
+                }
         ) {
             Row(
                 modifier = Modifier
