@@ -1,0 +1,6 @@
+{
+  "name": "Funds Expense Tracker",
+  "description": "Privacy-first, offline UPI & Bank Expense Tracker with a glassmorphic design.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
