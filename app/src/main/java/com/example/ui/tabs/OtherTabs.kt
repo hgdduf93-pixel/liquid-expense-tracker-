@@ -5,6 +5,7 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -387,31 +388,6 @@ fun TransactionsTab(viewModel: ExpenseViewModel = viewModel()) {
                             lineHeight = 18.sp,
                             textAlign = TextAlign.Center
                         )
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        // Fast Testing Button
-                        Button(
-                            onClick = {
-                                viewModel.simulateTestTransaction(
-                                    title = "Swiggy Food",
-                                    body = "Paid Rs. 380 to Swiggy on 16 Sep using Google Pay UPI"
-                                )
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color.White.copy(alpha = 0.1f),
-                                contentColor = Color(0xFF00E5FF)
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Bolt,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Simulate Test Transaction", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        }
                     }
                 }
             }
@@ -577,10 +553,14 @@ private fun formatTransactionTimestamp(timestamp: Long): String {
 }
 
 @Composable
-fun SettingsTab(viewModel: ExpenseViewModel = viewModel()) {
+fun SettingsTab(
+    viewModel: ExpenseViewModel = viewModel(),
+    onOpenPrivacySheet: () -> Unit = {}
+) {
     val context = LocalContext.current as? Activity
     var showTerms by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
+    var showAboutGsd by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -590,30 +570,124 @@ fun SettingsTab(viewModel: ExpenseViewModel = viewModel()) {
             .padding(bottom = 90.dp)
     ) {
         Text("SETTINGS", color = Color(0xFF71717A), fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.2.sp)
-        Spacer(modifier = Modifier.height(6.dp))
-        Text("PREFERENCES", fontSize = 32.sp, fontWeight = FontWeight.Black, color = Color.White)
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Notification Access Settings
+        // Architect & Creator Profile Card
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color.Transparent,
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.08f),
+                                Color(0xFF121218).copy(alpha = 0.7f)
+                            )
+                        ),
+                        shape = RoundedCornerShape(24.dp)
+                    )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Circular obsidian avatar pill (52x52 dp)
+                    Surface(
+                        color = Color.White.copy(alpha = 0.05f),
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .size(52.dp)
+                            .border(1.5.dp, Color.White.copy(alpha = 0.25f), CircleShape),
+                        shadowElevation = 8.dp
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "GSD",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 0.06.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "GSD Systems",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Filled.Verified,
+                                contentDescription = "Verified Architect",
+                                tint = Color(0xFF00E5FF),
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+
+                        Text(
+                            text = "Lead Architect & Developer",
+                            color = Color(0xFFA1A1AA),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        // Glowing Status Pill Badge
+                        Surface(
+                            color = Color(0xFF34D399).copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(999.dp),
+                            border = BorderStroke(1.dp, Color(0xFF34D399).copy(alpha = 0.25f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "●",
+                                    color = Color(0xFF34D399),
+                                    fontSize = 10.sp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Active Core • 100% Offline",
+                                    color = Color(0xFF34D399),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Notification Access & Privacy Settings
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
             onClick = {
-                try {
-                    val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context?.startActivity(intent)
-                } catch (e: Throwable) {
-                    try {
-                        val fallbackIntent = Intent(Settings.ACTION_SETTINGS).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        context?.startActivity(fallbackIntent)
-                    } catch (ignored: Throwable) {
-                        // Safe fallback in preview sandbox
-                    }
-                }
+                onOpenPrivacySheet()
             }
         ) {
             Row(
@@ -625,15 +699,15 @@ fun SettingsTab(viewModel: ExpenseViewModel = viewModel()) {
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Filled.NotificationsActive,
+                        imageVector = Icons.Filled.Shield,
                         contentDescription = null,
                         tint = Color(0xFF00E5FF),
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text("Notification Listener Access", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        Text("Manage auto-tracking permissions", color = Color(0xFFA1A1AA), fontSize = 12.sp)
+                        Text("Privacy & Auto-Tracking Setup", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text("Offline badges & 3-step permission helper", color = Color(0xFFA1A1AA), fontSize = 12.sp)
                     }
                 }
                 Icon(
@@ -642,6 +716,33 @@ fun SettingsTab(viewModel: ExpenseViewModel = viewModel()) {
                     tint = Color(0xFF71717A),
                     modifier = Modifier.size(16.dp)
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // About Mudrix Row
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { showAboutGsd = true }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Code,
+                    contentDescription = null,
+                    tint = Color(0xFF00E5FF),
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("About Mudrix", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("Engineered by GSD • 100% Offline Financial Ledger", color = Color(0xFFA1A1AA), fontSize = 12.sp)
+                }
             }
         }
 
@@ -695,31 +796,42 @@ fun SettingsTab(viewModel: ExpenseViewModel = viewModel()) {
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Exit
-        GlassCard(
+
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        Box(
             modifier = Modifier.fillMaxWidth(),
-            onClick = {
-                try {
-                    context?.finish()
-                } catch (ignored: Throwable) {}
-            }
+            contentAlignment = Alignment.Center
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.ExitToApp,
-                    contentDescription = null,
-                    tint = Color(0xFFFF5252),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("Exit Application", color = Color(0xFFFF5252), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-            }
+            Text(
+                text = "POWERED BY GSD",
+                color = Color(0xFF52525B),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 2.8.sp
+            )
         }
+    }
+
+    if (showAboutGsd) {
+        AlertDialog(
+            onDismissRequest = { showAboutGsd = false },
+            title = { Text("About Mudrix", color = Color.White) },
+            text = {
+                Text(
+                    "Mudrix • Engineered by GSD as a completely private, offline-first personal financial ledger. Zero third-party servers, zero analytics, strictly on-device intelligence.",
+                    color = Color(0xFFA1A1AA),
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showAboutGsd = false }) {
+                    Text("Close", color = Color(0xFF00E5FF))
+                }
+            },
+            containerColor = Color(0xFF14151C)
+        )
     }
 
     if (showTerms) {
@@ -729,7 +841,8 @@ fun SettingsTab(viewModel: ExpenseViewModel = viewModel()) {
             text = {
                 Text(
                     "This application processes financial notifications locally on your device to help you track expenses. No personal transaction data, SMS messages, or financial information is ever uploaded to remote servers.",
-                    color = Color(0xFFA1A1AA)
+                    color = Color(0xFFA1A1AA),
+                    lineHeight = 20.sp
                 )
             },
             confirmButton = {
@@ -748,7 +861,8 @@ fun SettingsTab(viewModel: ExpenseViewModel = viewModel()) {
             text = {
                 Text(
                     "This will delete all locally tracked expense records from the database. This action cannot be undone.",
-                    color = Color(0xFFA1A1AA)
+                    color = Color(0xFFA1A1AA),
+                    lineHeight = 20.sp
                 )
             },
             confirmButton = {

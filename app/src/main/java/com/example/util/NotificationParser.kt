@@ -5,6 +5,14 @@ import java.util.Locale
 import java.util.regex.Pattern
 
 object NotificationParser {
+    private val blacklistedKeywords = listOf(
+        "otp", "verification code", "one time password", "secret code",
+        "pre-approved", "apply now", "congratulations", "cashback won", "reward", "offer",
+        "due date", "bill generated", "minimum due", "statement for"
+    )
+
+    private val balanceInquiryKeywords = listOf("available balance", "avl bal", "inquiry")
+    private val debitCreditMarkers = listOf("debited", "credited", "spent", "paid", "sent", "received")
 
     // Regex to capture amounts like "Rs. 250", "Rs 1,250.50", "INR 400", "₹500", "debited by 300"
     private val amountRegex = Regex(
@@ -17,11 +25,22 @@ object NotificationParser {
     )
 
     fun parse(title: String, text: String): Transaction? {
-        val combinedMessage = "$title $text".trim()
-        if (combinedMessage.isEmpty()) return null
+        val rawCombined = "$title $text".trim()
+        if (rawCombined.isEmpty()) return null
+        val lowerMessage = rawCombined.lowercase(Locale.ROOT)
+        val combinedMessage = rawCombined
+
+        // Strict Anti-Spam & OTP Filter
+        if (blacklistedKeywords.any { lowerMessage.contains(it) }) {
+            return null
+        }
+        if (balanceInquiryKeywords.any { lowerMessage.contains(it) }) {
+            val hasMarker = debitCreditMarkers.any { lowerMessage.contains(it) }
+            if (!hasMarker) return null
+        }
 
         // Look for amount
-        val match = amountRegex.find(combinedMessage) ?: return null
+        val match = amountRegex.find(rawCombined) ?: return null
         val amountStr = match.groups[1]?.value?.replace(",", "")?.trim() ?: return null
         val amount = amountStr.toDoubleOrNull() ?: return null
         if (amount <= 0.0) return null

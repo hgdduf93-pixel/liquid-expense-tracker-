@@ -67,8 +67,28 @@ class ExpenseNotificationListener : NotificationListenerService() {
                     Log.d(TAG, "Parsed Transaction: Amount=${transaction.amount}, Merchant=${transaction.merchantName}, Category=${transaction.category}, Type=${transaction.type}")
                     scope.launch {
                         val db = AppDatabase.getInstance(applicationContext)
-                        db.transactionDao().insert(transaction)
-                        Log.d(TAG, "Successfully inserted transaction into Room Database")
+                        val dao = db.transactionDao()
+                        val sinceTime = System.currentTimeMillis() - 90000L
+                        val recentTransactions = dao.getRecentTransactions(sinceTime)
+
+                        val existingMatch = recentTransactions.find { kotlin.math.abs(it.amount - transaction.amount) < 0.01 }
+                        if (existingMatch != null) {
+                            val isIncomingRicher = transaction.merchantName != "Merchant Payment" && existingMatch.merchantName == "Merchant Payment"
+                            if (isIncomingRicher) {
+                                val updated = existingMatch.copy(
+                                    merchantName = transaction.merchantName,
+                                    category = transaction.category,
+                                    rawMessage = "${existingMatch.rawMessage} | ${transaction.rawMessage}"
+                                )
+                                dao.insert(updated)
+                                Log.d(TAG, "Updated existing transaction with richer metadata: ID=${updated.id}")
+                            } else {
+                                Log.d(TAG, "Duplicate transaction detected (Amount: ${transaction.amount}), skipping insertion.")
+                            }
+                        } else {
+                            dao.insert(transaction)
+                            Log.d(TAG, "Successfully inserted new transaction into Room Database")
+                        }
                     }
                 }
             }

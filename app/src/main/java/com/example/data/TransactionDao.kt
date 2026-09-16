@@ -19,11 +19,23 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
     fun getAllTransactions(): Flow<List<Transaction>>
 
+    @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
+    fun getAllTransactionsFlow(): Flow<List<Transaction>>
+
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM transactions WHERE type = 'DEBIT'")
     fun getTotalDebitSpend(): Flow<Double>
 
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'DEBIT' AND timestamp >= :startOfMonth")
+    fun getMonthlyTotalDebitFlow(startOfMonth: Long): Flow<Double?>
+
+    @Query("SELECT SUM(amount) FROM transactions WHERE type = 'DEBIT' AND timestamp >= :startOfDay")
+    fun getTodayTotalDebitFlow(startOfDay: Long): Flow<Double?>
+
     @Query("SELECT COALESCE(SUM(amount), 0.0) FROM transactions WHERE type = 'DEBIT' AND timestamp >= :startOfDayTimestamp")
     fun getTodayDebitSpend(startOfDayTimestamp: Long): Flow<Double>
+
+    @Query("SELECT * FROM transactions WHERE timestamp >= :sinceTime ORDER BY timestamp DESC")
+    suspend fun getRecentTransactions(sinceTime: Long): List<Transaction>
 
     @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'DEBIT' GROUP BY category ORDER BY total DESC")
     fun getCategoryWiseSpend(): Flow<List<CategorySpend>>

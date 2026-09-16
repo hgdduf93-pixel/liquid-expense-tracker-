@@ -12,16 +12,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ui.components.AddExpenseDialog
+import com.example.ui.components.AddExpenseFloatingButton
 import com.example.ui.components.GlassCard
+import com.example.ui.components.PrivacyOnboardingSheet
 import com.example.ui.tabs.*
+import com.example.viewmodel.ExpenseViewModel
 
 sealed class Tab(val icon: ImageVector, val title: String) {
     object Home : Tab(Icons.Filled.Home, "Home")
@@ -31,9 +38,24 @@ sealed class Tab(val icon: ImageVector, val title: String) {
 }
 
 @Composable
-fun MainScreen() {
+fun MainScreen(
+    viewModel: ExpenseViewModel = viewModel()
+) {
+    val context = LocalContext.current
     var activeTab by remember { mutableStateOf<Tab>(Tab.Home) }
     val tabs = remember { listOf(Tab.Home, Tab.Analytics, Tab.Transactions, Tab.Settings) }
+
+    // Privacy Onboarding sheet state: shown on first launch if permission is missing
+    var hasDismissedOnboarding by rememberSaveable { mutableStateOf(false) }
+    val initialPermission = remember {
+        try { checkNotificationAccess(context) } catch (e: Throwable) { false }
+    }
+    var showPrivacySheet by remember {
+        mutableStateOf(!initialPermission && !hasDismissedOnboarding)
+    }
+
+    // Manual Add Expense Dialog state
+    var showAddExpenseDialog by remember { mutableStateOf(false) }
 
     val backgroundBrush = remember {
         Brush.verticalGradient(
@@ -70,10 +92,17 @@ fun MainScreen() {
                     label = "tabTransition"
                 ) { target ->
                     when (target) {
-                        Tab.Home -> DashboardTab(onNavigateToTransactions = { activeTab = Tab.Transactions })
-                        Tab.Analytics -> AnalyticsTab()
-                        Tab.Transactions -> TransactionsTab()
-                        Tab.Settings -> SettingsTab()
+                        Tab.Home -> DashboardTab(
+                            viewModel = viewModel,
+                            onNavigateToTransactions = { activeTab = Tab.Transactions },
+                            onOpenPrivacySheet = { showPrivacySheet = true }
+                        )
+                        Tab.Analytics -> AnalyticsTab(viewModel = viewModel)
+                        Tab.Transactions -> TransactionsTab(viewModel = viewModel)
+                        Tab.Settings -> SettingsTab(
+                            viewModel = viewModel,
+                            onOpenPrivacySheet = { showPrivacySheet = true }
+                        )
                     }
                 }
             }
@@ -136,6 +165,42 @@ fun MainScreen() {
                     }
                 }
             }
+        }
+
+        // Floating Porcelain White Capsule Button: "+ Add Expense" at bottom right
+        AddExpenseFloatingButton(
+            onClick = { showAddExpenseDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 20.dp, bottom = 86.dp)
+        )
+
+        // Privacy Onboarding Bottom Sheet
+        if (showPrivacySheet) {
+            PrivacyOnboardingSheet(
+                onDismiss = {
+                    showPrivacySheet = false
+                    hasDismissedOnboarding = true
+                },
+                onContinueManual = {
+                    showPrivacySheet = false
+                    hasDismissedOnboarding = true
+                },
+                onAccessGranted = {
+                    showPrivacySheet = false
+                }
+            )
+        }
+
+        // Manual Transaction Entry Dialog
+        if (showAddExpenseDialog) {
+            AddExpenseDialog(
+                onDismiss = { showAddExpenseDialog = false },
+                onSave = { transaction ->
+                    viewModel.insertTransaction(transaction)
+                }
+            )
         }
     }
 }

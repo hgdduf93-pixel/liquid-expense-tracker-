@@ -91,10 +91,7 @@ fun GlassmorphicDashboardScreen(
                     Icon(Icons.Filled.Settings, "Settings", tint = Color.Gray)
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = {}, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CC9F0))) {
-                Text("⚡ Simulate Bank Notification")
-            }
+
         }
         AnimatedVisibility(
             visible = showHistory,

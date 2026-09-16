@@ -133,7 +133,36 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
             initialValue = emptyList()
         )
 
-    val monthlyBudget: Double = 50000.0
+    private fun getStartOfMonthTimestamp(): Long {
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        return calendar.timeInMillis
+    }
+
+    private val prefs = application.getSharedPreferences("mudrix_prefs", android.content.Context.MODE_PRIVATE)
+    private val _monthlyBudgetState = MutableStateFlow(prefs.getFloat("monthly_budget_target", 0f).toDouble())
+    val monthlyBudget: StateFlow<Double> = _monthlyBudgetState.asStateFlow()
+
+    fun setMonthlyBudget(amount: Double) {
+        _monthlyBudgetState.value = amount
+        prefs.edit().putFloat("monthly_budget_target", amount.toFloat()).apply()
+    }
+
+    val totalSpentThisMonth: StateFlow<Double> = allTransactions
+        .map { list ->
+            val startOfMonth = getStartOfMonthTimestamp()
+            list.filter { it.type == "DEBIT" && it.timestamp >= startOfMonth }.sumOf { it.amount }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = _inMemoryTransactions.value.filter { it.type == "DEBIT" && it.timestamp >= getStartOfMonthTimestamp() }.sumOf { it.amount }
+        )
 
     fun insertTransaction(transaction: Transaction) {
         // Always update in-memory state so UI updates instantaneously
