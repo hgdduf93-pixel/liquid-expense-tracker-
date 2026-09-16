@@ -131,8 +131,10 @@ fun DashboardTab(
     }
 
     // Real reactive values from Room Database & fallback state
-    val totalSpent by viewModel.totalSpent.collectAsStateWithLifecycle()
-    val todaySpent by viewModel.todaySpent.collectAsStateWithLifecycle()
+    val netBalance by viewModel.netBalance.collectAsStateWithLifecycle()
+    val totalCredits by viewModel.totalCredits.collectAsStateWithLifecycle()
+    val totalDebits by viewModel.totalDebits.collectAsStateWithLifecycle()
+    val todayNetSpent by viewModel.todayNetSpent.collectAsStateWithLifecycle()
     val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
     val recentTransactions = remember(allTransactions) {
         allTransactions.sortedByDescending { it.timestamp }.take(5)
@@ -140,14 +142,14 @@ fun DashboardTab(
 
     val monthlyBudget by viewModel.monthlyBudget.collectAsStateWithLifecycle()
     val totalSpentThisMonth by viewModel.totalSpentThisMonth.collectAsStateWithLifecycle()
-    val remainingBudget = monthlyBudget - totalSpentThisMonth
+    val remainingBudget = if (monthlyBudget > 0) monthlyBudget - totalSpentThisMonth else 0.0
     val isOverBudget = monthlyBudget > 0 && totalSpentThisMonth > monthlyBudget
 
     var showBudgetDialog by remember { mutableStateOf(false) }
     var budgetInputText by remember { mutableStateOf("") }
 
-    val totalAmountAnim = remember { Animatable(0f) }
-    val todayAmountAnim = remember { Animatable(0f) }
+    val netBalanceAnim = remember { Animatable(0f) }
+    val todayNetAnim = remember { Animatable(0f) }
     val budgetAmountAnim = remember { Animatable(0f) }
     val arcSweepAnim = remember { Animatable(0f) }
     var isBalanceVisible by remember { mutableStateOf(true) }
@@ -155,14 +157,14 @@ fun DashboardTab(
     val targetArc = if (monthlyBudget > 0) {
         ((totalSpentThisMonth / monthlyBudget) * 360f).toFloat().coerceIn(0f, 360f)
     } else {
-        ((totalSpent / 50000.0) * 360f).toFloat().coerceIn(0f, 360f)
+        ((totalDebits / 50000.0) * 360f).toFloat().coerceIn(0f, 360f)
     }
-    val arcColor = if (isOverBudget) Color(0xFFEF4444) else Color(0xFF00E5FF)
+    val arcColor = if (isOverBudget) Color(0xFFEF4444) else Color(0xFF34D399)
 
     // Smooth count-up easing whenever database updates
-    LaunchedEffect(totalSpent, todaySpent, remainingBudget, monthlyBudget) {
-        launch { totalAmountAnim.animateTo(totalSpent.toFloat(), tween(1000, easing = FastOutSlowInEasing)) }
-        launch { todayAmountAnim.animateTo(todaySpent.toFloat(), tween(1000, easing = FastOutSlowInEasing)) }
+    LaunchedEffect(netBalance, todayNetSpent, remainingBudget, monthlyBudget, totalDebits) {
+        launch { netBalanceAnim.animateTo(netBalance.toFloat(), tween(1000, easing = FastOutSlowInEasing)) }
+        launch { todayNetAnim.animateTo(kotlin.math.abs(todayNetSpent).toFloat(), tween(1000, easing = FastOutSlowInEasing)) }
         launch { budgetAmountAnim.animateTo(remainingBudget.toFloat(), tween(1000, easing = FastOutSlowInEasing)) }
         launch { arcSweepAnim.animateTo(if (targetArc > 0f) targetArc else 45f, tween(1000, easing = FastOutSlowInEasing)) }
     }
@@ -320,7 +322,7 @@ fun DashboardTab(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Hero Spent Amount Card
+        // Hero Total Balance / Cash Flow Card
         GlassCard(
             modifier = Modifier.fillMaxWidth(),
             onClick = onNavigateToTransactions
@@ -333,7 +335,7 @@ fun DashboardTab(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "SPENT AMOUNT",
+                            "TOTAL BALANCE",
                             color = Color(0xFFA1A1AA),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -368,12 +370,48 @@ fun DashboardTab(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (isBalanceVisible) currencyFormatter.format(totalAmountAnim.value.toDouble()) else "₹ ••••••••",
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        val netVal = netBalanceAnim.value.toDouble()
+                        val netColor = if (netVal >= 0) Color.White else Color(0xFFF87171)
+                        val formattedNetVal = if (isBalanceVisible) {
+                            val absV = kotlin.math.abs(netVal)
+                            val formatted = currencyFormatter.format(absV)
+                            when {
+                                netVal > 0.001 -> "+ $formatted"
+                                netVal < -0.001 -> "- $formatted"
+                                else -> formatted
+                            }
+                        } else "₹ ••••••••"
+
+                        Text(
+                            text = formattedNetVal,
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = netColor
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Inflow / Outflow Micro Bar
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "↑ ${currencyFormatter.format(totalCredits)}",
+                                color = Color(0xFF34D399),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text("•", color = Color.White.copy(alpha = 0.2f), fontSize = 12.sp)
+                            Text(
+                                text = "↓ ${currencyFormatter.format(totalDebits)}",
+                                color = Color(0xFFE4E4E7),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
 
                     Canvas(modifier = Modifier.size(68.dp)) {
                         drawArc(
@@ -425,14 +463,19 @@ fun DashboardTab(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = if (isBalanceVisible) currencyFormatter.format(todayAmountAnim.value.toDouble()) else "₹ ••••",
+                        text = if (isBalanceVisible) currencyFormatter.format(todayNetAnim.value.toDouble()) else "₹ ••••",
                         color = Color.White,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
+                    val todaySubtitle = when {
+                        todayNetSpent > 0.001 -> "Daily spent"
+                        todayNetSpent < -0.001 -> "Net income"
+                        else -> "Break-even"
+                    }
                     Text(
-                        "Daily spent",
+                        todaySubtitle,
                         color = Color(0xFF52525B),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium

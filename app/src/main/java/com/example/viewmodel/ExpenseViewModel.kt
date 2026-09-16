@@ -99,26 +99,37 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         _inMemoryTransactions.asStateFlow()
     }
 
-    val totalSpent: StateFlow<Double> = allTransactions
-        .map { list ->
-            list.filter { it.type == "DEBIT" }.sumOf { it.amount }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = _inMemoryTransactions.value.filter { it.type == "DEBIT" }.sumOf { it.amount }
-        )
+    val totalDebits: StateFlow<Double> = allTransactions
+        .map { list -> list.filter { it.type == "DEBIT" }.sumOf { it.amount } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val todaySpent: StateFlow<Double> = allTransactions
+    val totalCredits: StateFlow<Double> = allTransactions
+        .map { list -> list.filter { it.type == "CREDIT" }.sumOf { it.amount } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val netBalance: StateFlow<Double> = combine(totalCredits, totalDebits) { credits, debits ->
+        credits - debits
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val todayDebits: StateFlow<Double> = allTransactions
         .map { list ->
             val startOfDay = getStartOfDayTimestamp()
             list.filter { it.type == "DEBIT" && it.timestamp >= startOfDay }.sumOf { it.amount }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = _inMemoryTransactions.value.filter { it.type == "DEBIT" && it.timestamp >= getStartOfDayTimestamp() }.sumOf { it.amount }
-        )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val todayCredits: StateFlow<Double> = allTransactions
+        .map { list ->
+            val startOfDay = getStartOfDayTimestamp()
+            list.filter { it.type == "CREDIT" && it.timestamp >= startOfDay }.sumOf { it.amount }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val todayNetSpent: StateFlow<Double> = combine(todayDebits, todayCredits) { debits, credits ->
+        debits - credits
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val totalSpent: StateFlow<Double> = totalDebits
+
+    val todaySpent: StateFlow<Double> = todayDebits
 
     val categoryBreakdown: StateFlow<List<CategorySpend>> = allTransactions
         .map { list ->

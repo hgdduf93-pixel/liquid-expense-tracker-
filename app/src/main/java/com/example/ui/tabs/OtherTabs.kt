@@ -591,7 +591,7 @@ fun SettingsTab(
     viewModel: ExpenseViewModel = viewModel(),
     onOpenPrivacySheet: () -> Unit = {}
 ) {
-    val context = LocalContext.current as? Activity
+    val context = LocalContext.current
     var showTerms by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
     var showAboutGsd by remember { mutableStateOf(false) }
@@ -825,6 +825,41 @@ fun SettingsTab(
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text("Terms & Conditions", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Share App
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = {
+                val sendIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, "Check out Mudrix - the ultimate offline-first financial ledger and expense tracker! Track your expenses automatically and securely.")
+                    type = "text/plain"
+                }
+                val shareIntent = Intent.createChooser(sendIntent, "Share Mudrix")
+                context.startActivity(shareIntent)
+            }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Share,
+                    contentDescription = null,
+                    tint = Color(0xFF00E5FF),
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("Share App with Friends", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("Spread the word about private, offline expense tracking", color = Color(0xFFA1A1AA), fontSize = 12.sp)
+                }
             }
         }
 
