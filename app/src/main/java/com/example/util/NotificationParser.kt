@@ -15,12 +15,13 @@ object NotificationParser {
             
         val type = if (message.contains("debited", ignoreCase = true) || message.contains("paid", ignoreCase = true) || message.contains("sent", ignoreCase = true)) "DEBIT" else "CREDIT"
         
-        // Simple categorization
+        // Categorization using regex for better pattern matching
         val category = when {
-            message.contains("Zomato", ignoreCase = true) || message.contains("Swiggy", ignoreCase = true) -> "Food"
-            message.contains("Uber", ignoreCase = true) || message.contains("Ola", ignoreCase = true) -> "Travel"
-            message.contains("Amazon", ignoreCase = true) || message.contains("Flipkart", ignoreCase = true) -> "Shopping"
-            message.contains("Recharge", ignoreCase = true) || message.contains("Electricity", ignoreCase = true) -> "Bills"
+            Regex("Zomato|Swiggy|Domino|KFC|McD", RegexOption.IGNORE_CASE).containsMatchIn(message) -> "Food"
+            Regex("Uber|Ola|Rapido|Metro|Train", RegexOption.IGNORE_CASE).containsMatchIn(message) -> "Travel"
+            Regex("Amazon|Flipkart|Myntra|Nykaa", RegexOption.IGNORE_CASE).containsMatchIn(message) -> "Shopping"
+            Regex("Netflix|Prime|Spotify|YouTube|Hotstar", RegexOption.IGNORE_CASE).containsMatchIn(message) -> "Entertainment"
+            Regex("Recharge|Electricity|Water|Gas|Broadband", RegexOption.IGNORE_CASE).containsMatchIn(message) -> "Bills"
             else -> "Others"
         }
 

@@ -40,7 +40,14 @@ fun GlassmorphicDashboardScreen(
     viewModel: ExpenseViewModel = viewModel()
 ) {
     var showHistory by remember { mutableStateOf(false) }
-    val transactions by viewModel.allTransactions.collectAsState(initial = emptyList())
+    val dbTransactions by viewModel.allTransactions.collectAsState(initial = emptyList())
+    val transactions = remember(dbTransactions) {
+        if (dbTransactions.isNotEmpty()) dbTransactions else listOf(
+            Transaction(101, 4299.0, "DEBIT", "Apple Store", "Shopping", System.currentTimeMillis() - 1000*60*35, "Paid to Apple Store"),
+            Transaction(102, 340.0, "DEBIT", "Uber Technologies", "Travel", System.currentTimeMillis() - 1000*60*60*2, "Debited for Uber Ride"),
+            Transaction(103, 480.0, "DEBIT", "Starbucks Coffee", "Food", System.currentTimeMillis() - 1000*60*60*4, "Paid at Starbucks")
+        )
+    }
     
     Box(modifier = modifier.fillMaxSize().background(Color(0xFF070913))) {
         Box(modifier = Modifier.size(300.dp).offset(x = 100.dp, y = (-50).dp).background(Color(0xFF3A0CA3).copy(alpha = 0.4f), CircleShape).blur(80.dp))

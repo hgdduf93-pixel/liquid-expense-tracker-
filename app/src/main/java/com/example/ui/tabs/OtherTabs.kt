@@ -1,5 +1,6 @@
 package com.example.ui.tabs
 
+import android.app.Activity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
@@ -24,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -477,7 +479,30 @@ fun CategoriesTab() {
 
 @Composable
 fun SettingsTab() {
+    val context = LocalContext.current as? Activity
+    var showTerms by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.padding(24.dp).fillMaxSize().padding(bottom = 90.dp)) {
         Text("SETTINGS", color = Color(0xFF71717A), fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.12.sp)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        GlassCard(modifier = Modifier.fillMaxWidth().clickable { showTerms = true }) {
+            Text("Terms & Conditions", color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(16.dp))
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        GlassCard(modifier = Modifier.fillMaxWidth().clickable { context?.finish() }) {
+            Text("Exit Application", color = Color.Red, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(16.dp))
+        }
+    }
+
+    if (showTerms) {
+        AlertDialog(
+            onDismissRequest = { showTerms = false },
+            title = { Text("Terms & Conditions") },
+            text = { Text("This is the terms and conditions for the app. By continuing to use this app, you agree to these terms.") },
+            confirmButton = {
+                TextButton(onClick = { showTerms = false }) { Text("Close") }
+            }
+        )
     }
 }

@@ -28,14 +28,13 @@ sealed class Tab(val icon: ImageVector, val title: String) {
     object Home : Tab(Icons.Filled.Home, "Home")
     object Analytics : Tab(Icons.Filled.BarChart, "Analytics")
     object Transactions : Tab(Icons.Filled.SwapHoriz, "Transactions")
-    object Categories : Tab(Icons.Filled.GridView, "Categories")
     object Settings : Tab(Icons.Filled.Settings, "Settings")
 }
 
 @Composable
 fun MainScreen() {
     var activeTab by remember { mutableStateOf<Tab>(Tab.Home) }
-    val tabs = listOf(Tab.Home, Tab.Analytics, Tab.Transactions, Tab.Categories, Tab.Settings)
+    val tabs = listOf(Tab.Home, Tab.Analytics, Tab.Transactions, Tab.Settings)
 
     val infiniteTransition = rememberInfiniteTransition(label = "blob")
     val scale by infiniteTransition.animateFloat(1f, 1.08f, infiniteRepeatable(tween(4000), RepeatMode.Reverse), label = "scale")
@@ -58,7 +57,6 @@ fun MainScreen() {
                         Tab.Home -> DashboardTab()
                         Tab.Analytics -> AnalyticsTab()
                         Tab.Transactions -> TransactionsTab()
-                        Tab.Categories -> CategoriesTab()
                         Tab.Settings -> SettingsTab()
                     }
                 }
