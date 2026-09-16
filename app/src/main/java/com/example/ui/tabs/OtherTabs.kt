@@ -3,6 +3,10 @@ package com.example.ui.tabs
 import android.app.Activity
 import android.content.Intent
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -220,6 +224,7 @@ fun AnalyticsTab(viewModel: ExpenseViewModel = viewModel()) {
 fun TransactionsTab(viewModel: ExpenseViewModel = viewModel()) {
     val dbTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
     var searchQuery by remember { mutableStateOf("") }
+    var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
     val context = LocalContext.current
 
     val filteredList = remember(dbTransactions, searchQuery) {
@@ -418,6 +423,7 @@ fun TransactionsTab(viewModel: ExpenseViewModel = viewModel()) {
 fun AnimatedTransactionItem(transaction: Transaction, index: Int, viewModel: ExpenseViewModel = viewModel()) {
     var isVisible by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -472,7 +478,8 @@ fun AnimatedTransactionItem(transaction: Transaction, index: Int, viewModel: Exp
                     detectTapGestures(
                         onLongPress = { showDeleteDialog = true }
                     )
-                }
+                },
+            onClick = { selectedTransaction = transaction }
         ) {
             Row(
                 modifier = Modifier
@@ -547,6 +554,15 @@ fun AnimatedTransactionItem(transaction: Transaction, index: Int, viewModel: Exp
                 }
             }
         }
+    }
+
+    if (selectedTransaction != null) {
+        val tx = selectedTransaction!!
+        com.example.ui.components.TransactionDetailDialog(
+            transaction = tx,
+            onDismiss = { selectedTransaction = null },
+            categoryIcon = getTransactionCategoryIcon(tx.category)
+        )
     }
 }
 
@@ -751,6 +767,150 @@ fun SettingsTab(
                     modifier = Modifier.size(16.dp)
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        val coroutineScope = rememberCoroutineScope()
+        var pendingExportData by remember { mutableStateOf<List<Transaction>>(emptyList()) }
+
+        val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+            uri?.let {
+                coroutineScope.launch(Dispatchers.IO) {
+                    com.example.util.ExportManager.exportCsv(context, it, pendingExportData)
+                }
+            }
+        }
+
+        val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+            uri?.let {
+                coroutineScope.launch(Dispatchers.IO) {
+                    val titleFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+                    val title = "Statement for " + titleFormat.format(java.util.Date())
+                    com.example.util.ExportManager.exportPdf(context, it, pendingExportData, title)
+                }
+            }
+        }
+
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = {
+                coroutineScope.launch {
+                    val txs = viewModel.getCurrentMonthTransactions()
+                    pendingExportData = txs
+                    csvLauncher.launch("Mudrix_Vault_Statement_" + SimpleDateFormat("yyyy_MM", Locale.getDefault()).format(java.util.Date()) + ".csv")
+                }
+            }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Download,
+                        contentDescription = null,
+                        tint = Color(0xFF34D399),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Export Monthly Statement (CSV)", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text("Secure zero-permission offline CSV export", color = Color(0xFFA1A1AA), fontSize = 12.sp)
+                    }
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = Color(0xFF71717A),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = {
+                coroutineScope.launch {
+                    val txs = viewModel.getCurrentMonthTransactions()
+                    pendingExportData = txs
+                    pdfLauncher.launch("Mudrix_Vault_Statement_" + SimpleDateFormat("yyyy_MM", Locale.getDefault()).format(java.util.Date()) + ".pdf")
+                }
+            }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Description,
+                        contentDescription = null,
+                        tint = Color(0xFF00E5FF),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Export Monthly Statement (PDF)", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text("Professional formatted native PDF report", color = Color(0xFFA1A1AA), fontSize = 12.sp)
+                    }
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = Color(0xFF71717A),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        var showCustomInvoiceDialog by remember { mutableStateOf(false) }
+
+        GlassCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { showCustomInvoiceDialog = true }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Receipt,
+                        contentDescription = null,
+                        tint = Color(0xFFFFD700),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Custom Invoice Maker", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text("Create & export custom billing invoices", color = Color(0xFFA1A1AA), fontSize = 12.sp)
+                    }
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = Color(0xFF71717A),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
+        if (showCustomInvoiceDialog) {
+            com.example.ui.components.CustomInvoiceDialog(onDismiss = { showCustomInvoiceDialog = false })
         }
 
         Spacer(modifier = Modifier.height(14.dp))

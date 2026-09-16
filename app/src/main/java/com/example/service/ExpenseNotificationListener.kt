@@ -33,6 +33,9 @@ class ExpenseNotificationListener : NotificationListenerService() {
             "com.mobikwik_new",
             "com.freecharge.android",
             "indwin.c3.shareKaro",
+            "com.fampay.in",
+            "com.bharatpe.app",
+            "com.bharatpe.merchant",
             "com.whatsapp",
             // SMS Apps
             "com.google.android.apps.messaging",
@@ -55,12 +58,14 @@ class ExpenseNotificationListener : NotificationListenerService() {
             val packageName = sbn.packageName ?: ""
             val extras = sbn.notification?.extras ?: return
 
-            val title = extras.getCharSequence("android.title")?.toString() ?: ""
-            val text = extras.getCharSequence("android.text")?.toString() ?: ""
-            val bigText = extras.getCharSequence("android.bigText")?.toString() ?: ""
-            val messageContent = if (bigText.isNotBlank()) bigText else text
+            val title = extras.getString(android.app.Notification.EXTRA_TITLE) ?: extras.getCharSequence("android.title")?.toString() ?: ""
+            val text = extras.getCharSequence(android.app.Notification.EXTRA_TEXT)?.toString() ?: ""
+            val bigText = extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
+            val subText = extras.getCharSequence(android.app.Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
 
-            val fullText = "$title $messageContent".lowercase()
+            val messageContent = listOf(text, bigText, subText).filter { it.isNotBlank() }.joinToString(" ")
+            val fullContent = "$title $text $bigText $subText".replace("\\s+".toRegex(), " ").trim().lowercase()
+            val fullText = fullContent
 
             val isChatApp = packageName.contains("whatsapp", ignoreCase = true)
             if (isChatApp) {
@@ -68,15 +73,15 @@ class ExpenseNotificationListener : NotificationListenerService() {
                 if (!hasPaymentMarker) return
             }
 
-            val isTargetPackage = packageName in TARGET_PACKAGES ||
-                    packageName.contains("sms", ignoreCase = true) ||
-                    packageName.contains("mms", ignoreCase = true) ||
-                    packageName.contains("message", ignoreCase = true)
+            val isUpiApp = TARGET_PACKAGES.contains(packageName) &&
+                    !packageName.contains("messaging", true) &&
+                    !packageName.contains("mms", true) &&
+                    !packageName.contains("message", true)
 
             val containsBankKeywords = BANK_KEYWORDS.any { fullText.contains(it) }
 
-            if (isTargetPackage || containsBankKeywords) {
-                Log.d(TAG, "Notification matched from $packageName: Title='$title', Text='$messageContent'")
+            if (isUpiApp || containsBankKeywords) {
+                Log.d(TAG, "Notification matched from $packageName: Title='$title', Content='$messageContent'")
                 val transaction = NotificationParser.parse(packageName, title, messageContent)
                 if (transaction != null) {
                     Log.d(TAG, "Parsed Transaction: Amount=${transaction.amount}, Merchant=${transaction.merchantName}, Category=${transaction.category}, Type=${transaction.type}")

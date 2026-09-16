@@ -1,5 +1,6 @@
 package com.example.ui.tabs
 
+import com.example.data.Transaction
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
@@ -147,6 +148,7 @@ fun DashboardTab(
 
     var showBudgetDialog by remember { mutableStateOf(false) }
     var budgetInputText by remember { mutableStateOf("") }
+    var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     val netBalanceAnim = remember { Animatable(0f) }
     val todayNetAnim = remember { Animatable(0f) }
@@ -641,7 +643,7 @@ fun DashboardTab(
                         color = Color.White.copy(alpha = 0.03f),
                         shape = RoundedCornerShape(20.dp),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-                        onClick = onNavigateToTransactions
+                        onClick = { selectedTransaction = tx }
                     ) {
                         Row(
                             modifier = Modifier
@@ -800,6 +802,15 @@ fun DashboardTab(
                 }
             },
             containerColor = Color(0xFF14151C)
+        )
+    }
+
+    if (selectedTransaction != null) {
+        val tx = selectedTransaction!!
+        com.example.ui.components.TransactionDetailDialog(
+            transaction = tx,
+            onDismiss = { selectedTransaction = null },
+            categoryIcon = getCategoryIcon(tx.category)
         )
     }
 }

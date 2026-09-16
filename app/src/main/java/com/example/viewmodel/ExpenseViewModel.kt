@@ -192,6 +192,27 @@ class ExpenseViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    suspend fun getCurrentMonthTransactions(): List<Transaction> {
+        val calendar = java.util.Calendar.getInstance().apply {
+            set(java.util.Calendar.DAY_OF_MONTH, 1)
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val startTimestamp = calendar.timeInMillis
+        val endTimestamp = System.currentTimeMillis()
+        return if (isRoomAvailable && dao != null) {
+            try {
+                dao.getTransactionsForMonth(startTimestamp, endTimestamp)
+            } catch (e: Exception) {
+                _inMemoryTransactions.value.filter { it.timestamp in startTimestamp..endTimestamp }
+            }
+        } else {
+            _inMemoryTransactions.value.filter { it.timestamp in startTimestamp..endTimestamp }
+        }
+    }
+
     fun deleteTransaction(id: Int) {
         _inMemoryTransactions.value = _inMemoryTransactions.value.filter { it.id != id }
 

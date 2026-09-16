@@ -50,6 +50,13 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE timestamp >= :sinceTime ORDER BY timestamp DESC")
     suspend fun getRecentTransactions(sinceTime: Long): List<Transaction>
 
+    @Query("""
+        SELECT * FROM transactions 
+        WHERE timestamp >= :startTimestamp AND timestamp <= :endTimestamp 
+        ORDER BY timestamp DESC
+    """)
+    suspend fun getTransactionsForMonth(startTimestamp: Long, endTimestamp: Long): List<Transaction>
+
     @Query("SELECT category, SUM(amount) as total FROM transactions WHERE type = 'DEBIT' GROUP BY category ORDER BY total DESC")
     fun getCategoryWiseSpend(): Flow<List<CategorySpend>>
 
