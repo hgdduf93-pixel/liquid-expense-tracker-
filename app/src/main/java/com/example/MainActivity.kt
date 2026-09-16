@@ -18,7 +18,9 @@ import com.example.ui.MainScreen
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    enableEdgeToEdge()
+    try {
+      enableEdgeToEdge()
+    } catch (ignored: Throwable) {}
     setContent {
       MyApplicationTheme {
         MainScreen()
