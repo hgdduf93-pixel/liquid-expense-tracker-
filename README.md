@@ -33,5 +33,6 @@ An intelligent Android expense management app powered by **Google Gemini AI**. I
 ### Installation
 
 1. **Clone the repository:**
-   ```bash
+  ## 📱 Screenshots
+  ```bash
    git clone [https://github.com/hgdduf93-pixel/liquid-expense-tracker.git](https://github.com/hgdduf93-pixel/liquid-expense-tracker.git)
