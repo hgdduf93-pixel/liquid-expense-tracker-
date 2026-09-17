@@ -1,4 +1,4 @@
-# 💳 Liquid Expense Tracker
+# 💳 Mudrix by gsd
 
 An intelligent Android expense management app powered by **Google Gemini AI**. It automatically parses transaction notifications and bank alerts to track, categorize, and summarize your daily spending in real time.
 
